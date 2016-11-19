@@ -8,20 +8,19 @@
 
 ;; This file is NOT part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
+;; Copyright (c) 2016 VMware, Inc. All Rights Reserved.
 ;;
-;; This program is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
 ;;
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; http://www.apache.org/licenses/LICENSE-2.0
+;;
+;; Unless required by applicable law or agreed to in writing, software
+;; distributed under the License is distributed on an "AS IS" BASIS,
+;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;; See the License for the specific language governing permissions and
+;; limitations under the License.
 
 ;;; Commentary:
 
@@ -335,7 +334,7 @@ Optionally clear govc env if UNSET is non-nil."
 Optionally set `GOVC_*' vars in `process-environment' using prefix
 \\[universal-argument] ARG or unset with prefix \\[negative-argument] ARG."
   (interactive "P")
-  (kill-new (message (if arg (s-join " " (govc-export-environment arg)) govc-session-url))))
+  (message (kill-new (if arg (s-join " " (govc-export-environment arg)) govc-session-url))))
 
 (defun govc-process (command handler)
   "Run COMMAND, calling HANDLER upon successful exit of the process."
@@ -478,7 +477,7 @@ Also fixes the case where user contains an '@'."
   (interactive)
   (govc-shell-command
    (govc-command "events"
-                 (list "-n" govc-max-events (govc-selection)))))
+                 (list "-n" govc-max-events (if current-prefix-arg "-f") (govc-selection)))))
 
 (defun govc-parse-info (output)
   "Parse govc info command OUTPUT."
@@ -844,10 +843,23 @@ Optionally filter by FILTER and inherit SESSION."
                                          (with-demoted-errors
                                              (govc "datastore.upload" tmpfile srcfile)))) t t)))))
 
+(defun govc-datastore-tail ()
+  "Tail datastore file."
+  (interactive)
+  (govc-shell-command
+   (govc-command "datastore.tail"
+                 (list "-n" govc-max-events (if current-prefix-arg "-f")) (govc-selection))))
+
 (defun govc-datastore-ls-json ()
   "JSON via govc datastore.ls -json on current selection."
   (interactive)
   (let ((govc-args '("-l" "-p")))
+    (govc-json-info-selection "datastore.ls")))
+
+(defun govc-datastore-ls-r-json ()
+  "Search via govc datastore.ls -json -R on current selection."
+  (interactive)
+  (let ((govc-args '("-l" "-p" "-R")))
     (govc-json-info-selection "datastore.ls")))
 
 (defun govc-datastore-mkdir (name)
@@ -869,7 +881,9 @@ Optionally filter by FILTER and inherit SESSION."
 (defvar govc-datastore-ls-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "J" 'govc-datastore-ls-json)
+    (define-key map "S" 'govc-datastore-ls-r-json)
     (define-key map "D" 'govc-datastore-rm-selection)
+    (define-key map "T" 'govc-datastore-tail)
     (define-key map "+" 'govc-datastore-mkdir)
     (define-key map (kbd "DEL") 'govc-datastore-ls-parent)
     (define-key map (kbd "RET") 'govc-datastore-ls-child)
@@ -877,8 +891,8 @@ Optionally filter by FILTER and inherit SESSION."
     map)
   "Keymap for `govc-datastore-ls-mode'.")
 
-(defun govc-datastore-ls (&optional datastore session)
-  "List govc datastore.  Optionally specify DATASTORE and SESSION."
+(defun govc-datastore-ls (&optional datastore session filter)
+  "List govc datastore.  Optionally specify DATASTORE, SESSION and FILTER."
   (interactive)
   (let ((buffer (get-buffer-create "*govc-datastore*")))
     (pop-to-buffer buffer)
@@ -887,6 +901,7 @@ Optionally filter by FILTER and inherit SESSION."
         (govc-session-clone session)
       (call-interactively 'govc-session))
     (setq govc-session-datastore (or datastore (govc-object-prompt "govc datastore: " 'govc-ls-datastore)))
+    (setq govc-filter filter)
     (tabulated-list-print)))
 
 (define-derived-mode govc-datastore-ls-mode govc-tabulated-list-mode "Datastore"
@@ -1096,8 +1111,14 @@ Open via `eww' by default, via `browse-url' if ARG is non-nil."
 (defun govc-vm-datastore ()
   "Datastore via `govc-datastore-ls' with datastore of current selection."
   (interactive)
-  (govc-datastore (s-split ", " (govc-table-column-value "Storage") t)
-                  (govc-current-session)))
+  (if current-prefix-arg
+      (govc-datastore (s-split ", " (govc-table-column-value "Storage") t)
+                      (govc-current-session))
+    (let* ((data (govc-json "vm.info" (tabulated-list-get-id)))
+           (vm (elt (plist-get data :VirtualMachines) 0))
+           (dir (plist-get (plist-get (plist-get vm :Config) :Files) :LogDirectory))
+           (args (s-split "\\[\\|\\]" dir t)))
+      (govc-datastore-ls (first args) (govc-current-session) (concat (s-trim (second args)) "/")))))
 
 (defun govc-vm-ping ()
   "Ping VM."

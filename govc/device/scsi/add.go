@@ -55,6 +55,15 @@ func (cmd *add) Register(ctx context.Context, f *flag.FlagSet) {
 	f.BoolVar(&cmd.hotAddRemove, "hot", false, "Enable hot-add/remove")
 }
 
+func (cmd *add) Description() string {
+	return `Add SCSI controller to VM.
+
+Examples:
+  govc device.scsi.add -vm $vm
+  govc device.scsi.add -vm $vm -type pvscsi
+  govc device.info -vm $vm {lsi,pv}*`
+}
+
 func (cmd *add) Process(ctx context.Context) error {
 	if err := cmd.VirtualMachineFlag.Process(ctx); err != nil {
 		return err
@@ -72,7 +81,7 @@ func (cmd *add) Run(ctx context.Context, f *flag.FlagSet) error {
 		return flag.ErrHelp
 	}
 
-	devices, err := vm.Device(context.TODO())
+	devices, err := vm.Device(ctx)
 	if err != nil {
 		return err
 	}
@@ -86,13 +95,13 @@ func (cmd *add) Run(ctx context.Context, f *flag.FlagSet) error {
 	c.HotAddRemove = &cmd.hotAddRemove
 	c.SharedBus = types.VirtualSCSISharing(cmd.sharedBus)
 
-	err = vm.AddDevice(context.TODO(), d)
+	err = vm.AddDevice(ctx, d)
 	if err != nil {
 		return err
 	}
 
 	// output name of device we just created
-	devices, err = vm.Device(context.TODO())
+	devices, err = vm.Device(ctx)
 	if err != nil {
 		return err
 	}

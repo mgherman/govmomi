@@ -76,7 +76,7 @@ func (cmd *attach) Run(ctx context.Context, f *flag.FlagSet) error {
 		return err
 	}
 
-	devices, err := vm.Device(context.TODO())
+	devices, err := vm.Device(ctx)
 	if err != nil {
 		return err
 	}
@@ -93,11 +93,11 @@ func (cmd *attach) Run(ctx context.Context, f *flag.FlagSet) error {
 		if cmd.persist {
 			backing.DiskMode = string(types.VirtualDiskModeIndependent_persistent)
 		} else {
-			backing.DiskMode = string(types.VirtualDiskModeIndependent_persistent)
+			backing.DiskMode = string(types.VirtualDiskModeIndependent_nonpersistent)
 		}
 
 		disk = devices.ChildDisk(disk)
-		return vm.AddDevice(context.TODO(), disk)
+		return vm.AddDevice(ctx, disk)
 	}
 
 	if cmd.persist {
@@ -106,5 +106,5 @@ func (cmd *attach) Run(ctx context.Context, f *flag.FlagSet) error {
 		backing.DiskMode = string(types.VirtualDiskModeNonpersistent)
 	}
 
-	return vm.AddDevice(context.TODO(), disk)
+	return vm.AddDevice(ctx, disk)
 }

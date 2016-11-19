@@ -111,6 +111,26 @@ func (d Datastore) Browser(ctx context.Context) (*HostDatastoreBrowser, error) {
 	return NewHostDatastoreBrowser(d.c, do.Browser), nil
 }
 
+func (d Datastore) useServiceTicket() bool {
+	// If connected to workstation, service ticketing not supported
+	if d.c.ServiceContent.About.ProductLineId == "ws" {
+		return false
+	}
+
+	key := "GOVMOMI_USE_SERVICE_TICKET"
+
+	val := d.c.URL().Query().Get(key)
+	if val == "" {
+		val = os.Getenv(key)
+	}
+
+	if val == "0" || val == "false" {
+		return false
+	}
+
+	return true
+}
+
 func (d Datastore) useServiceTicketHostName(name string) bool {
 	// No need if talking directly to ESX.
 	if !d.c.IsVC() {
@@ -160,6 +180,10 @@ func (d Datastore) ServiceTicket(ctx context.Context, path string, method string
 		}.Encode(),
 	}
 
+	if !d.useServiceTicket() {
+		return u, nil, nil
+	}
+
 	// If connected to VC, the ticket request must be for an ESX host.
 	if d.c.IsVC() {
 		hosts, err := d.AttachedHosts(ctx)
@@ -201,6 +225,8 @@ func (d Datastore) ServiceTicket(ctx context.Context, path string, method string
 	if d.useServiceTicketHostName(ticket.HostName) {
 		u.Host = ticket.HostName
 	}
+
+	d.Client().SetThumbprint(u.Host, ticket.SslThumbprint)
 
 	return u, cookie, nil
 }
@@ -313,7 +339,7 @@ func (d Datastore) AttachedHosts(ctx context.Context) ([]*HostSystem, error) {
 	return hosts, nil
 }
 
-// AttachedHosts returns hosts that have this Datastore attached, accessible and writable and are members of the given cluster.
+// AttachedClusterHosts returns hosts that have this Datastore attached, accessible and writable and are members of the given cluster.
 func (d Datastore) AttachedClusterHosts(ctx context.Context, cluster *ComputeResource) ([]*HostSystem, error) {
 	var hosts []*HostSystem
 
@@ -358,12 +384,12 @@ func (d Datastore) Stat(ctx context.Context, file string) (types.BaseFileInfo, e
 	}
 
 	dsPath := d.Path(path.Dir(file))
-	task, err := b.SearchDatastore(context.TODO(), dsPath, &spec)
+	task, err := b.SearchDatastore(ctx, dsPath, &spec)
 	if err != nil {
 		return nil, err
 	}
 
-	info, err := task.WaitForResult(context.TODO(), nil)
+	info, err := task.WaitForResult(ctx, nil)
 	if err != nil {
 		if info == nil || info.Error != nil {
 			_, ok := info.Error.Fault.(*types.FileNotFound)

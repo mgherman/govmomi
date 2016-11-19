@@ -110,6 +110,17 @@ func (cmd *clone) Register(ctx context.Context, f *flag.FlagSet) {
 	f.BoolVar(&cmd.waitForIP, "waitip", false, "Wait for VM to acquire IP address")
 }
 
+func (cmd *clone) Usage() string {
+	return "NAME"
+}
+
+func (cmd *clone) Description() string {
+	return `Clone VM to NAME.
+
+Examples:
+  govc vm.clone -vm template-vm new-vm`
+}
+
 func (cmd *clone) Process(ctx context.Context) error {
 	if err := cmd.ClientFlag.Process(ctx); err != nil {
 		return err
@@ -182,7 +193,7 @@ func (cmd *clone) Run(ctx context.Context, f *flag.FlagSet) error {
 	}
 
 	if cmd.HostSystem != nil {
-		if cmd.ResourcePool, err = cmd.HostSystem.ResourcePool(context.TODO()); err != nil {
+		if cmd.ResourcePool, err = cmd.HostSystem.ResourcePool(ctx); err != nil {
 			return err
 		}
 	} else {
@@ -200,12 +211,16 @@ func (cmd *clone) Run(ctx context.Context, f *flag.FlagSet) error {
 		return err
 	}
 
-	task, err := cmd.cloneVM(context.TODO())
+	if cmd.VirtualMachine == nil {
+		return flag.ErrHelp
+	}
+
+	task, err := cmd.cloneVM(ctx)
 	if err != nil {
 		return err
 	}
 
-	info, err := task.WaitForResult(context.TODO(), nil)
+	info, err := task.WaitForResult(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -220,23 +235,23 @@ func (cmd *clone) Run(ctx context.Context, f *flag.FlagSet) error {
 		if cmd.memory > 0 {
 			vmConfigSpec.MemoryMB = int64(cmd.memory)
 		}
-		task, err := vm.Reconfigure(context.TODO(), vmConfigSpec)
+		task, err := vm.Reconfigure(ctx, vmConfigSpec)
 		if err != nil {
 			return err
 		}
-		_, err = task.WaitForResult(context.TODO(), nil)
+		_, err = task.WaitForResult(ctx, nil)
 		if err != nil {
 			return err
 		}
 	}
 
 	if cmd.on {
-		task, err := vm.PowerOn(context.TODO())
+		task, err := vm.PowerOn(ctx)
 		if err != nil {
 			return err
 		}
 
-		_, err = task.WaitForResult(context.TODO(), nil)
+		_, err = task.WaitForResult(ctx, nil)
 		if err != nil {
 			return err
 		}
