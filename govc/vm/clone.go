@@ -29,7 +29,6 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 
-	"github.com/davecgh/go-spew/spew"
 	"reflect"
 )
 
@@ -410,17 +409,7 @@ func (cmd *clone) cloneVM(ctx context.Context) (*object.Task, error) {
 		// set the customization
 		cloneSpec.Customization = &customSpec
 
-		//mgh
-		//fmt.Printf("*** %v\n\n", customSpec)
-		//fmt.Printf("*** %#v\n\n", customSpec)
-
 		xx := customSpec.NicSettingMap[0].Adapter.Ip
-
-		// spew.Dump(customSpec.NicSettingMap[0].Adapter.SubnetMask)
-		// spew.Dump(customSpec.NicSettingMap[0].Adapter.Gateway[0])
-		fmt.Printf("Before:\n")
-		spew.Dump(customSpec.NicSettingMap[0].Adapter)
-
 
 		if len(cmd.custip) > 0 {
 			aa := reflect.ValueOf(xx).Elem()
@@ -434,9 +423,6 @@ func (cmd *clone) cloneVM(ctx context.Context) (*object.Task, error) {
 		if len(cmd.custgw) > 0 {
 			customSpec.NicSettingMap[0].Adapter.Gateway[0] = cmd.custgw
 		}
-
-		fmt.Printf("After:\n")
-		spew.Dump(customSpec.NicSettingMap[0].Adapter)
 	}
 		
 
